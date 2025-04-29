@@ -8,6 +8,7 @@
 import Foundation
 import MapKit
 import CoreLocation
+import UIKit
 
 enum BUTTON_IDS: Int {
     case LOCATION = 100
@@ -20,28 +21,32 @@ class FlutterMapView: MKMapView, UIGestureRecognizerDelegate {
     var oldBounds: CGRect?
     var options: Dictionary<String, Any>?
     var isMyLocationButtonShowing: Bool? = false
-    
+
     fileprivate let locationManager: CLLocationManager = CLLocationManager()
-    
+
     let mapTypes: Array<MKMapType> = [
         MKMapType.standard,
         MKMapType.satellite,
         MKMapType.hybrid,
     ]
-    
+
     let userTrackingModes: Array<MKUserTrackingMode> = [
         MKUserTrackingMode.none,
         MKUserTrackingMode.follow,
         MKUserTrackingMode.followWithHeading,
     ]
-    
+
     convenience init(channel: FlutterMethodChannel, options: Dictionary<String, Any>) {
         self.init(frame: CGRect.zero)
         self.channel = channel
         self.options = options
         initialiseTapGestureRecognizers()
+        // Force the map view to always use Dark Mode
+        if #available(iOS 13.0, *) {
+            self.overrideUserInterfaceStyle = .dark
+        }
     }
-    
+
     var actualHeading: CLLocationDirection {
         get {
             if mapContainerView != nil {
@@ -64,7 +69,7 @@ class FlutterMapView: MKMapView, UIGestureRecognizerDelegate {
             return CLLocationDirection.zero
         }
     }
-    
+
     // To calculate the displayed region we have to get the layout bounds.
     // Because the self is layed out using an auto layout we have to call
     // setCenterCoordinate after the self was layed out.
@@ -83,14 +88,14 @@ class FlutterMapView: MKMapView, UIGestureRecognizerDelegate {
         }
         oldBounds = self.bounds
     }
-    
-    
+
+
     override func didMoveToSuperview() {
         if oldBounds != CGRect.zero {
             oldBounds = CGRect.zero
         }
     }
-    
+
     private func findViewOfType(_ viewType: String, inView view: UIView) -> UIView? {
       // function scans subviews recursively and returns
       // reference to the found one of a type
@@ -110,7 +115,7 @@ class FlutterMapView: MKMapView, UIGestureRecognizerDelegate {
         return nil
       }
     }
-    
+
     func interpretOptions(options: Dictionary<String, Any>) {
         if let isCompassEnabled: Bool = options["compassEnabled"] as? Bool {
             if #available(iOS 9.0, *) {
@@ -121,30 +126,30 @@ class FlutterMapView: MKMapView, UIGestureRecognizerDelegate {
 
         if let padding: Array<Any> = options["padding"] as? Array<Any> {
             var margins = UIEdgeInsets(top: 0.0, left: 0.0, bottom: 0.0, right: 0.0)
-            
+
             if padding.count >= 1, let top: Double = padding[0] as? Double {
                 margins.top = CGFloat(top)
             }
-            
+
             if padding.count >= 2, let left: Double = padding[1] as? Double {
                 margins.left = CGFloat(left)
             }
-            
+
             if padding.count >= 3, let bottom: Double = padding[2] as? Double {
                 margins.bottom = CGFloat(bottom)
             }
-            
+
             if padding.count >= 4, let right: Double = padding[3] as? Double {
                 margins.right = CGFloat(right)
             }
-            
+
             self.layoutMargins = margins
         }
-        
+
         if let mapType: Int = options["mapType"] as? Int {
             self.mapType = self.mapTypes[mapType]
         }
-        
+
         if let trafficEnabled: Bool = options["trafficEnabled"] as? Bool {
             if #available(iOS 9.0, *) {
                 self.showsTraffic = trafficEnabled
