@@ -7,6 +7,7 @@
 
 import Foundation
 import MapKit
+import UIKit
 
 public class AppleMapController: NSObject, FlutterPlatformView {
     var contentView: UIView
@@ -18,28 +19,28 @@ public class AppleMapController: NSObject, FlutterPlatformView {
     var currentlySelectedAnnotation: String?
     var snapShotOptions: MKMapSnapshotter.Options = MKMapSnapshotter.Options()
     var snapShot: MKMapSnapshotter?
-    
+
     public init(withFrame frame: CGRect, withRegistrar registrar: FlutterPluginRegistrar, withargs args: Dictionary<String, Any> ,withId id: Int64) {
         self.options = args["options"] as! [String: Any]
         self.channel = FlutterMethodChannel(name: "apple_maps_plugin.luisthein.de/apple_maps_\(id)", binaryMessenger: registrar.messenger())
-        
+
         self.mapView = FlutterMapView(channel: channel, options: options)
         self.registrar = registrar
-        
+
         // To stop the odd movement of the Apple logo.
         self.contentView = UIScrollView()
         self.contentView.addSubview(mapView)
         mapView.autoresizingMask = [.flexibleHeight, .flexibleWidth]
-        
+
         self.initialCameraPosition = args["initialCameraPosition"]! as! Dictionary<String, Any>
-        
+
         super.init()
-        
+
         self.mapView.delegate = self
-        
+
         self.mapView.setCenterCoordinate(initialCameraPosition, animated: false)
         self.setMethodCallHandlers()
-        
+
         if let annotationsToAdd: NSArray = args["annotationsToAdd"] as? NSArray {
             self.annotationsToAdd(annotations: annotationsToAdd)
         }
@@ -53,11 +54,11 @@ public class AppleMapController: NSObject, FlutterPlatformView {
             self.addCircles(circleData: circlesToAdd)
         }
     }
-    
+
     public func view() -> UIView {
         return contentView
     }
-    
+
     private func setMethodCallHandlers() {
         channel.setMethodCallHandler({ [unowned self] (call: FlutterMethodCall, result: @escaping FlutterResult) -> Void in
             if let args: Dictionary<String, Any> = call.arguments as? Dictionary<String,Any> {
@@ -149,7 +150,7 @@ public class AppleMapController: NSObject, FlutterPlatformView {
             }
         })
     }
-    
+
     private func annotationUpdate(args: Dictionary<String, Any>) -> Void {
         if let annotationsToAdd = args["annotationsToAdd"] as? NSArray {
             if annotationsToAdd.count > 0 {
@@ -167,7 +168,7 @@ public class AppleMapController: NSObject, FlutterPlatformView {
             }
         }
     }
-    
+
     private func polygonUpdate(args: Dictionary<String, Any>) -> Void {
         if let polyligonsToAdd: NSArray = args["polygonsToAdd"] as? NSArray {
             self.addPolygons(polygonData: polyligonsToAdd)
@@ -179,7 +180,7 @@ public class AppleMapController: NSObject, FlutterPlatformView {
             self.removePolygons(polygonIds: polygonsToRemove)
         }
     }
-    
+
     private func polylineUpdate(args: Dictionary<String, Any>) -> Void {
         if let polylinesToAdd: NSArray = args["polylinesToAdd"] as? NSArray {
             self.addPolylines(polylineData: polylinesToAdd)
@@ -191,7 +192,7 @@ public class AppleMapController: NSObject, FlutterPlatformView {
             self.removePolylines(polylineIds: polylinesToRemove)
         }
     }
-    
+
     private func circleUpdate(args: Dictionary<String, Any>) -> Void {
         if let circlesToAdd: NSArray = args["circlesToAdd"] as? NSArray {
             self.addCircles(circleData: circlesToAdd)
@@ -203,7 +204,7 @@ public class AppleMapController: NSObject, FlutterPlatformView {
             self.removeCircles(circleIds: circlesToRemove)
         }
     }
-    
+
     private func moveCamera(args: Dictionary<String, Any>) -> Void {
         let positionData: Dictionary<String, Any> = self.toPositionData(data: args["cameraUpdate"] as! Array<Any>, animated: true)
         if !positionData.isEmpty {
@@ -214,7 +215,7 @@ public class AppleMapController: NSObject, FlutterPlatformView {
             self.mapView.setBounds(positionData, animated: false)
         }
     }
-    
+
     private func animateCamera(args: Dictionary<String, Any>) -> Void {
         let positionData: Dictionary<String, Any> = self.toPositionData(data: args["cameraUpdate"] as! Array<Any>, animated: true)
         if !positionData.isEmpty {
@@ -225,7 +226,7 @@ public class AppleMapController: NSObject, FlutterPlatformView {
             self.mapView.setBounds(positionData, animated: true)
         }
     }
-    
+
     private func cameraConvert(args: Dictionary<String, Any>, result: FlutterResult) -> Void {
         guard let annotation = args["annotation"] as? Array<Double> else {
             result(nil)
@@ -234,7 +235,7 @@ public class AppleMapController: NSObject, FlutterPlatformView {
         let point = self.mapView.convert(CLLocationCoordinate2D(latitude: annotation[0] , longitude: annotation[1]), toPointTo: self.view())
         result(["point": [point.x, point.y]])
     }
-    
+
     private func toPositionData(data: Array<Any>, animated: Bool) -> Dictionary<String, Any> {
         var positionData: Dictionary<String, Any> = [:]
         if let update: String = data[0] as? String {
@@ -288,12 +289,12 @@ extension AppleMapController: MKMapViewDelegate {
         }
         self.channel.invokeMethod("camera#onIdle", arguments: "")
     }
-    
+
     // onMoveStarted
     public func mapView(_ mapView: MKMapView, regionWillChangeAnimated animated: Bool) {
         self.channel.invokeMethod("camera#onMoveStarted", arguments: "")
     }
-    
+
     public func mapView(_ mapView: MKMapView, rendererFor overlay: MKOverlay) -> MKOverlayRenderer {
         if overlay is FlutterPolyline {
             return self.polylineRenderer(overlay: overlay)
@@ -312,6 +313,10 @@ extension AppleMapController {
         snapShotOptions.region = self.mapView.region
         snapShotOptions.size = self.mapView.frame.size
         snapShotOptions.scale = UIScreen.main.scale
+        // Force Dark Mode for the snapshot output
+        if #available(iOS 13.0, *) {
+            snapShotOptions.traitCollection = UITraitCollection(userInterfaceStyle: .dark)
+        }
         snapShotOptions.showsBuildings = options.showBuildings
         snapShotOptions.showsPointsOfInterest = options.showPointsOfInterest
         
