@@ -309,8 +309,30 @@ extension AppleMapController: MKMapViewDelegate {
 
 extension AppleMapController {
     private func takeSnapshot(options: SnapshotOptions, onCompletion: @escaping (FlutterStandardTypedData?, Error?) -> Void) {
-        // MKMapSnapShotOptions setting.
-        snapShotOptions.region = self.mapView.region
+        // 1. Compute bounding map rect of all polylines
+        let polylines = self.mapView.overlays.compactMap { $0 as? MKPolyline }
+        var boundingMapRect: MKMapRect
+        if polylines.isEmpty {
+            // If there are no polylines, fallback to the visible region
+            boundingMapRect = self.mapView.visibleMapRect
+        } else {
+            boundingMapRect = polylines.reduce(MKMapRect.null) { $0.union($1.boundingMapRect) }
+        }
+
+        // 2. Apply padding (40 points in map points)
+        let paddingPoints: CGFloat = 40.0
+        // Convert 40pt to map points based on current region scale
+        let mapRectWidth = self.mapView.visibleMapRect.size.width
+        let viewWidth = self.mapView.bounds.size.width
+        let mapPointsPerPoint = mapRectWidth / Double(viewWidth)
+        let paddingMapPoints = Double(paddingPoints) * mapPointsPerPoint
+        boundingMapRect = boundingMapRect.insetBy(dx: -paddingMapPoints, dy: -paddingMapPoints)
+
+        // 3. Convert to region
+        let region = MKCoordinateRegion(boundingMapRect)
+
+        // 4. Configure snapshot options
+        snapShotOptions.region = region
         snapShotOptions.size = self.mapView.frame.size
         snapShotOptions.scale = UIScreen.main.scale
         // Force Dark Mode for the snapshot output
@@ -319,27 +341,21 @@ extension AppleMapController {
         }
         snapShotOptions.showsBuildings = options.showBuildings
         snapShotOptions.showsPointsOfInterest = options.showPointsOfInterest
-        
+
         // Set MKMapSnapShotOptions to MKMapSnapShotter.
         snapShot = MKMapSnapshotter(options: snapShotOptions)
-        
         snapShot?.cancel()
-        
+
         if #available(iOS 10.0, *) {
             snapShot?.start { [weak self] snapshot, error in
-                guard let self = self else {
-                    return
-                }
-                
+                guard let self = self else { return }
                 guard let snapshot = snapshot, error == nil else {
                     onCompletion(nil, error)
                     return
                 }
-                
+
                 let image = UIGraphicsImageRenderer(size: self.snapShotOptions.size).image { [weak self] context in
-                    guard let self = self else {
-                        return
-                    }
+                    guard let self = self else { return }
                     snapshot.image.draw(at: .zero)
                     let rect = self.snapShotOptions.mapRect
                     if options.showAnnotations {
